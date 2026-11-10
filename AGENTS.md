@@ -19,6 +19,7 @@ Edit AGENTS.md; CLAUDE.md imports it with @AGENTS.md.
 - Serve only inclusionAI/Ming-3.0-tts-0.5b; never tiny/MoE. Upstream provenance is in docs/upstream.md.
 - Startup and requests load local snapshots only; only admin Updates Download fetches weights. Never delete or clean AI/.cache.
 - No real model run without confirmed CUDA GPU; no CPU fallback. Inference stays in a serialized worker; cancellation must await worker cleanup before releasing the slot.
+- Voice cloning is off (`CLONING` in src/engine.py); do not re-enable without fixing the cut first word. Inline tags like `[Uhm]` are case-sensitive.
 - Keep optional task modes distinct; reject incompatible controls with 422. One-call references never persist or enter audio/prompt caches.
 - Tests use fake backends; no weights/GPU/network. Do not commit or publish unless asked.
 - Never read/print .env files, secrets, tokens.json or settings.json. Synthetic test files are isolated.

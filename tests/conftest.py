@@ -2,6 +2,7 @@
 import wave
 import io
 import pytest
+import engine
 from engine import Ming3Engine
 
 buffer = io.BytesIO()
@@ -11,6 +12,12 @@ with wave.open(buffer, 'wb') as output:
     output.setframerate(24000)
     output.writeframes(b'\0\0' * 2400)
 WAV = buffer.getvalue()
+
+
+@pytest.fixture(autouse=True)
+def _cloning_on(monkeypatch, request):
+    """Most tests exercise the cloning code, which is switched off in the shipped service; `cloning_off` tests keep it off."""
+    monkeypatch.setattr(engine, 'CLONING', 'cloning_off' not in request.keywords)
 
 
 @pytest.fixture(autouse=True)

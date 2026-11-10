@@ -27,7 +27,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from disconnect import CallerGone, Measure, first_piece
 from audio import AudioCache, wav_bytes, wav_header
-from engine import DEFAULT_REVISION, ONE_CALL_VOICE, EngineError, Ming3Engine, default_marker
+import engine as ming
+from engine import CLONING_OFF, DEFAULT_REVISION, ONE_CALL_VOICE, EngineError, Ming3Engine, default_marker
 from options import SETTINGS
 import settings
 from tokens import LatencyHistogram, TokenStore
@@ -56,6 +57,11 @@ class SpeakRequest(BaseModel):
     pitch: Literal['低','中','高'] | None = None
     volume: Literal['低','中','高'] | None = None
     emotion: Literal['高兴','悲伤','愤怒','恐惧','厌恶','惊讶','中性'] | None = None
+    # Upstream sampling knobs (defaults: cfg 2.0, sigma 0.25, max_length 24, use_spk_emb true). Unset keeps the default.
+    cfg: float | None = Field(None, ge=0, le=6)  # voice/text guidance strength
+    sigma: float | None = Field(None, ge=0, le=1)  # noise size, only matters when temperature > 0
+    max_length: int | None = Field(None, ge=8, le=200)  # target size of each generated fragment; larger = fewer joins
+    use_spk_emb: bool | None = None  # false: clone from the reference audio only, without the speaker embedding
     stream: bool = False  # completed waveform transport only; Ming has no incremental generation
     # A cloned voice for this call only (instead of `voice`): used while the audio is made, then deleted; never stored or cached.
     reference_audio_base64: str | None = Field(None, min_length=1, max_length=MAX_WAV_BYTES * 4 // 3 + 64)  # a WAV clip, base64 or a data: URL (the Try it panel sends one)
@@ -255,13 +261,15 @@ def create_app(client: Ming3Engine | None = None, admin_password: str | None = N
         return wav_reply(audio, started, "miss")
 
     def features(body: SpeakRequest) -> dict[str, Any]:
-        return {key: getattr(body, key) for key in ('language_id', 'voice_design', 'instruction', 'speed', 'pitch', 'volume', 'emotion')}
+        return {key: getattr(body, key) for key in ('language_id', 'voice_design', 'instruction', 'speed', 'pitch', 'volume', 'emotion', 'cfg', 'sigma', 'max_length', 'use_spk_emb')}
 
     def one_call_clip(body: SpeakRequest, allowed: list[str] | None) -> tuple[bytes, str] | None:
         """The (WAV, transcript) of a one-call cloned voice, or None. Needs both fields, no `voice`, and a token that
         is not limited to certain voices (a limited token may only use the voices listed for it)."""
         if body.reference_audio_base64 is None and body.reference_text is None:
             return None
+        if not ming.CLONING:
+            raise HTTPException(422, CLONING_OFF)
         if body.reference_audio_base64 is None or body.reference_text is None:
             raise HTTPException(422, "reference_audio_base64 and reference_text go together")
         if body.voice is not None:
@@ -326,6 +334,8 @@ def create_app(client: Ming3Engine | None = None, admin_password: str | None = N
     def put_voice(name: str, body: VoiceUpload) -> dict[str, Any]:
         """Adds or replaces a voice: a WAV clip of a few seconds and exactly what it says. Every replica sees it at once.
         Answers kept for the old clip stay in the cache until they age out, so use a seed-less call or a new name to hear the change."""
+        if not ming.CLONING:
+            raise HTTPException(422, CLONING_OFF)
         try:
             if name in client.builtin:
                 raise HTTPException(409, f"{name!r} is a built-in voice; pick another name")

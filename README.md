@@ -23,6 +23,8 @@ Ming-3.0-tts-0.5b dense text to speech behind the shared model-service HTTP/admi
 
 **Input:** JSON body `text` (1–5000 characters), optional `voice`, `seed` (0–2**62), `temperature` (0–1.5), `normalize` (default false), `stream` (default false). Unknown fields return 422. `preset` remains in the shared schema but Ming has no equivalent; non-null values return 422.
 
+**Voice cloning is off.** `CLONING = False` in `src/engine.py`. One-call references and saved clones answer `422`, and `PUT /admin/voices/{name}` is refused. Measured on an RTX 4050 Laptop: cloned speech starts mid-word (the first word is cut off), and a reference that ends in silence makes most sentences stop early. Use the built-in voices, `voice_design`, `instruction` and inline tags such as `[Uhm]`, `[Sigh]`, `[Laughter]` (case matters). Language, emotion and speed/pitch/volume need a reference, so they are refused too.
+
 **Body options:** One-call cloning uses paired `reference_audio_base64` (WAV, at most 10 MB decoded; data URLs accepted) and `reference_text` (1–2000 characters), without `voice`. Admin clones use `{audio_base64, transcript}`. Temporary references are removed on completion/failure/cancellation, never cached; upstream prompt caching is disabled. Saved clone names use the sibling ASCII naming rules. Chinese built-in names are accepted in requests and token scopes.
 
 | Optional Ming extension | Meaning and supported combination |

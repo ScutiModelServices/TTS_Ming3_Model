@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 import random
+import re
 import sys
 import tempfile
 import threading
@@ -23,7 +24,16 @@ DESIGN_VOICE = "designed"
 UPSTREAM_COMMIT = "a39b80660bdc5a4394d5e1d41af6dbfd9c443a54"
 SILENT_PEAK = 100  # of 32767 (about -50 dB); a failed 27 s clone measured -70 dB, speech peaks far above this
 LONG_REFERENCE_SECONDS = 15  # one 10.8 s clip worked, a 27 s clip gave silence; the exact limit is not measured
+CLONING = False  # off: cloned speech starts mid-word and stops early on padded references (see CHANGELOG); built-in voices, design and tags work
+CLONING_OFF = "Voice cloning is turned off in this service; use a built-in voice, voice_design or instruction."
+PAUSE_SECONDS = 0.2  # added between sentences, on top of the short tail upstream keeps on each one
+BOUNDARY = re.compile(r"(?<=[.!?;:])\s+|(?<=[。！？；：])\s*")  # not inside "3.14" or "10:30"
 sys.path.insert(0, str(Path(__file__).parent / "_upstream"))
+
+
+def sentences(text: str) -> list[str]:
+    """One piece per sentence; a piece with nothing to say ("...") is dropped."""
+    return [part for part in map(str.strip, BOUNDARY.split(text.strip())) if any(char.isalnum() for char in part)]
 
 
 class EngineError(RuntimeError):
@@ -188,6 +198,8 @@ class Ming3Engine:
         if preset is not None:
             raise EngineError("Ming has no preset; use task controls", 422)
         reference = None if clip else self.store.get(voice or DEFAULT_VOICE)
+        if (clip or reference) and not CLONING:
+            raise EngineError(CLONING_OFF, 422)
         name = ONE_CALL_VOICE if clip else voice or DEFAULT_VOICE
         if not clip and not reference and name not in BUILTIN:
             raise EngineError(f"Voice {name!r} is not served here; GET /v1/voices lists them", 404)
@@ -200,8 +212,12 @@ class Ming3Engine:
             if features.get("voice_design") or features.get("instruction"):
                 name = DESIGN_VOICE
             loaded = self._speaker()
+            # A designed voice is described per call, so it stays one call; everything else goes sentence by sentence.
+            pieces = [text] if name == DESIGN_VOICE else sentences(text) or [text]
+            gap = b"\0\0" * int(PAUSE_SECONDS * loaded.rate)
             try:
-                pcm = loaded.speak(text, seed, temperature, normalize, self.max_new_tokens, self._threads, args)
+                pcm = gap.join(loaded.speak(piece, seed, temperature, normalize, self.max_new_tokens, self._threads, args)
+                               for piece in pieces)
             except ValueError as error:
                 raise EngineError(str(error), 422) from None
             if not audible(pcm):
@@ -305,4 +321,7 @@ def task_arguments(voice: str | None, reference: tuple[Path, str] | None, featur
         args.update(use_spk_emb=True, use_zero_spk_emb=False, prompt_wav_path=str(reference[0]))
         if not basic and not emotion:
             args['prompt_text'] = reference[1]
+        if features.get('use_spk_emb') is not None:
+            args['use_spk_emb'] = features['use_spk_emb']
+    args.update({k: features[k] for k in ('cfg', 'sigma', 'max_length') if features.get(k) is not None})
     return args
