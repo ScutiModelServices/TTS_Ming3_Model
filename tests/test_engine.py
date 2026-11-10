@@ -88,3 +88,46 @@ def test_single_load_and_replica_marker(tmp_path):
         await engine.sync()
         assert engine.ready is False and engine.generation == 1
     asyncio.run(run())
+
+
+def _wav(seconds: float) -> bytes:
+    import io
+    import wave
+    buffer = io.BytesIO()
+    with wave.open(buffer, 'wb') as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b'\0\0' * int(8000 * seconds))
+    return buffer.getvalue()
+
+
+def test_audible_needs_a_sample_above_the_silence_peak():
+    assert not module.audible(b'')
+    assert not module.audible(b'\0\0' * 100)
+    assert not module.audible(b'\x01\0' * 100)  # about -90 dB
+    assert module.audible(b'\0\x20' * 100)
+
+
+def _silent_engine():
+    engine = make_engine()
+    engine.fake.speak = lambda *args: b'\x01\0' * 2400
+    return engine
+
+
+def test_silent_output_is_an_error_not_a_wav():
+    with pytest.raises(EngineError, match='no audible speech') as error:
+        asyncio.run(_silent_engine().synthesize('hello', None, 1, None))
+    assert error.value.status == 500
+
+
+def test_silent_clone_with_long_reference_names_the_length():
+    with pytest.raises(EngineError, match='over about 15 seconds') as error:
+        asyncio.run(_silent_engine().synthesize('hello', None, 1, None, clip=(_wav(16), 'words')))
+    assert error.value.status == 422
+
+
+def test_silent_clone_with_short_reference_gives_no_length_hint():
+    with pytest.raises(EngineError) as error:
+        asyncio.run(_silent_engine().synthesize('hello', None, 1, None, clip=(_wav(5), 'words')))
+    assert 'over about 15 seconds' not in str(error.value) and error.value.status == 422

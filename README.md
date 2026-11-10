@@ -78,7 +78,14 @@ Default install contains HTTP and test dependencies only. The inference extra in
 
 ## Limits worth knowing
 
-Real GPU inference, minimum VRAM, latency, audio quality and weight size are unverified. Docker engine was unavailable during creation, so image build/deployment are unverified. GPU availability is checked before constructing MingTTS; there is no CPU fallback. Upstream tested H800/H20, which is not evidence of minimum VRAM. `normalize: true` needs optional pynini; install the normalization extra on Linux. Native Windows normalization and GPU runtime are unverified. Seeds govern global RNG only inside the serialized worker; exact CUDA reproducibility is not guaranteed.
+**Measured on one machine** (native Windows, RTX 4050 Laptop GPU, 6 GB, plain PyTorch SDPA attention, no flash-attn, one replica):
+- Weights: `model.safetensors` is 2.96 GB (about 2.8 GB in the cache), plus a 0.03 GB speaker model. The file holds 1.48B BF16 parameters.
+- VRAM: about 3.0 GB after the model loads and about 3.7 GB at the peak of the requests tried (built-in voice, one-call clones of 10.8 s and 27 s references). Other programs on the GPU used about 0.75 GB before the model loaded, so allow about 4.5 GB in total. VRAM stays near the peak after requests because PyTorch keeps its cache. Each extra replica loads its own copy, so a second replica does not fit on 6 GB.
+- Speed: upstream's CLI generated about 3 s of audio in 4 to 5 s (about 7.4 steps/s), roughly 1.5 times slower than real time, excluding model load. This is one rough run, not a benchmark.
+
+**Reference clips.** A 10.8 s clip cloned correctly. A 27 s clip with mixed delivery gave no audible speech, with the service and with upstream's own `infer.py`, even with an exact Whisper transcript. The limit is not measured. Use a clean 8 to 12 second clip with its exact transcript. If the output is silent, the service returns `422` (`The model produced no audible speech`) instead of a near-empty WAV; a reference longer than 15 s adds a hint. The saved WAV limit is 10 MB.
+
+**Still unverified:** Docker image build and deployment, audio quality beyond listening to a few clips, other GPUs, and exact CUDA reproducibility (seeds govern global RNG only inside the serialized worker). GPU availability is checked before constructing MingTTS; there is no CPU fallback. Upstream tested H800/H20 only. `normalize: true` needs optional pynini; install the normalization extra on Linux; native Windows normalization is unverified.
 
 ## Try it from the admin page
 

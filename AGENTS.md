@@ -22,4 +22,4 @@ Edit AGENTS.md; CLAUDE.md imports it with @AGENTS.md.
 - Keep optional task modes distinct; reject incompatible controls with 422. One-call references never persist or enter audio/prompt caches.
 - Tests use fake backends; no weights/GPU/network. Do not commit or publish unless asked.
 - Never read/print .env files, secrets, tokens.json or settings.json. Synthetic test files are isolated.
-- Update operator docs and CHANGELOG with behavior changes. GPU/VRAM/size/Docker remain unverified until measured.
+- Update operator docs and CHANGELOG with behavior changes. GPU, VRAM and weight size are measured on one 6 GB laptop (see README limits); Docker build stays unverified until run.

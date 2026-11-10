@@ -27,7 +27,7 @@ class FakeSpeaker:
 
     def speak(self, text, seed, temperature, normalize, maximum, threads, arguments):
         self.calls.append((text, seed, dict(arguments)))
-        return b'\1\0' * 2400
+        return b'\0\x20' * 2400  # amplitude 8192: audible to the silent-output guard
 
 
 def make_engine(**options):

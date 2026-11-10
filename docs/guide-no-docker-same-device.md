@@ -2,7 +2,7 @@
 
 ## Requirements
 
-Python 3.11 or 3.12, uv, NVIDIA GPU and compatible driver. Native Windows CUDA inference is unverified. Normalization defaults false, avoiding pynini. See [Docker requirements](guide-docker-same-device.md#requirements).
+Python 3.11 or 3.12, uv, NVIDIA GPU and compatible driver. Native Windows CUDA inference ran on an RTX 4050 Laptop with 6 GB (about 3.7 GB VRAM at peak, one replica). Normalization defaults false, avoiding pynini. See [Docker requirements](guide-docker-same-device.md#requirements).
 
 ## Start
 

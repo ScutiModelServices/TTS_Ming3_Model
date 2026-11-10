@@ -26,7 +26,7 @@ Paste a public token; it stays in browser memory. Connect lists host and Docker 
 
 ### This service's request
 
-Speak takes text, optional voice/seed/temperature and separate Ming modes. Clear voice for one-call reference (WAV and exact transcript) or voice design/freeform. Language and basic/emotion control require a reference. Use Chinese categorical attribute/emotion values documented in README. Inline tags go in text. Stream sends one completed waveform; it does not start generation audio early. Normalize defaults false; true needs optional pynini.
+Speak takes text, optional voice/seed/temperature and separate Ming modes. Clear voice for one-call reference (WAV and exact transcript; use a clean 8 to 12 second clip, see README limits) or voice design/freeform. Language and basic/emotion control require a reference. Use Chinese categorical attribute/emotion values documented in README. Inline tags go in text. Stream sends one completed waveform; it does not start generation audio early. Normalize defaults false; true needs optional pynini.
 
 ## Problems
 

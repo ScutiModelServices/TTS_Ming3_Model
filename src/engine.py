@@ -21,6 +21,8 @@ BUILTIN = ("US_Emma", "UK_George", "UK_Charlotte", "灵小柔", "灵楷")
 ONE_CALL_VOICE = "custom"
 DESIGN_VOICE = "designed"
 UPSTREAM_COMMIT = "a39b80660bdc5a4394d5e1d41af6dbfd9c443a54"
+SILENT_PEAK = 100  # of 32767 (about -50 dB); a failed 27 s clone measured -70 dB, speech peaks far above this
+LONG_REFERENCE_SECONDS = 15  # one 10.8 s clip worked, a 27 s clip gave silence; the exact limit is not measured
 sys.path.insert(0, str(Path(__file__).parent / "_upstream"))
 
 
@@ -202,6 +204,10 @@ class Ming3Engine:
                 pcm = loaded.speak(text, seed, temperature, normalize, self.max_new_tokens, self._threads, args)
             except ValueError as error:
                 raise EngineError(str(error), 422) from None
+            if not audible(pcm):
+                hint = " A reference clip over about 15 seconds is a known cause; use a clean 8-12 second clip with its exact transcript." \
+                    if reference and clip_seconds(reference[0]) > LONG_REFERENCE_SECONDS else ""
+                raise EngineError("The model produced no audible speech." + hint, 422 if reference else 500)
             return {"wav": wav_bytes(pcm, loaded.rate), "seconds": len(pcm) / 2 / loaded.rate, "voice": name}
 
     async def synthesize(self, text, voice, seed, temperature, preset=None, normalize=False, clip=None, **features):
@@ -248,6 +254,21 @@ class Ming3Engine:
             return self._marker.read_text('utf-8') if self._marker else None
         except OSError:
             return None
+
+
+def audible(pcm: bytes) -> bool:
+    """False when 16-bit little-endian `pcm` is empty or never rises above SILENT_PEAK."""
+    return len(pcm) >= 2 and max(map(abs, memoryview(pcm[:len(pcm) // 2 * 2]).cast("h"))) > SILENT_PEAK
+
+
+def clip_seconds(path: Path) -> float:
+    """Length of a WAV file in seconds; 0 when it cannot be read."""
+    import wave
+    try:
+        with wave.open(str(path), "rb") as clip:
+            return clip.getnframes() / clip.getframerate()
+    except (OSError, EOFError, wave.Error, ZeroDivisionError):
+        return 0.0
 
 
 def task_arguments(voice: str | None, reference: tuple[Path, str] | None, features: dict) -> dict:
