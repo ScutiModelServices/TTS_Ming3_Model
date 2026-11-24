@@ -3,6 +3,7 @@ name: tts_ming3_model
 
 services:
   tts_ming3_model:
+    extra_hosts: ["host.docker.internal:host-gateway"]  # reaches services published on the host
     build: .
     image: tts_ming3_model:latest
     restart: unless-stopped
